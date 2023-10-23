@@ -5,7 +5,8 @@ import torch
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
-tf.reset_default_graph()
+# tf.reset_default_graph()
+tf.compat.v1.reset_default_graph()
 
 
 flags = tf.compat.v1.flags
@@ -31,9 +32,9 @@ def dropout_sparse(x, keep_prob, num_nonzero_elems):
     """
     noise_shape = [num_nonzero_elems]
     random_tensor = keep_prob
-    random_tensor += tf.random_uniform(noise_shape)
+    random_tensor += tf.random.uniform(noise_shape)
     dropout_mask = tf.cast(tf.floor(random_tensor), dtype=tf.bool)
-    pre_out = tf.sparse_retain(x, dropout_mask)
+    pre_out = tf.sparse.retain(x, dropout_mask)
     return pre_out * (1./keep_prob)
 
 
@@ -72,9 +73,9 @@ class Layer(object):
 
 class GraphConvolution(Layer):
     """Basic graph convolution layer for undirected graph without edge labels."""
-    def __init__(self, input_dim, output_dim, adj, dropout=0., act=tf.nn.relu, **kwargs):
+    def __init__(self, input_dim, output_dim, adj, dropout=0.1, act=tf.nn.relu, **kwargs):
         super(GraphConvolution, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
+        with tf.compat.v1.variable_scope(self.name + '_vars'):
             self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
         self.dropout = dropout
         self.adj = adj
@@ -84,7 +85,7 @@ class GraphConvolution(Layer):
         x = inputs
         x = tf.nn.dropout(x, 1-self.dropout)
         x = tf.matmul(x, self.vars['weights'])
-        x = tf.sparse_tensor_dense_matmul(self.adj, x)
+        x = tf.sparse.sparse_dense_matmul(self.adj, x)
         outputs = self.act(x)
         return outputs
 
@@ -95,9 +96,9 @@ class GraphConvolution(Layer):
 
 class GraphConvolutionSparse(Layer):
     """Graph convolution layer for sparse inputs."""
-    def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=tf.nn.relu, **kwargs):
+    def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0.1, act=tf.nn.relu, **kwargs):
         super(GraphConvolutionSparse, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
+        with tf.compat.v1.variable_scope(self.name + '_vars'):
             self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
         self.dropout = dropout
         self.adj = adj
@@ -108,15 +109,15 @@ class GraphConvolutionSparse(Layer):
     def _call(self, inputs):
         x = inputs
         x = dropout_sparse(x, 1-self.dropout, self.features_nonzero)
-        x = tf.sparse_tensor_dense_matmul(x, self.vars['weights'])
-        x = tf.sparse_tensor_dense_matmul(self.adj, x)
+        x = tf.sparse.sparse_dense_matmul(x, self.vars['weights'])
+        x = tf.sparse.sparse_dense_matmul(self.adj, x)
         outputs = self.act(x)
         return outputs
 
 class FullyConnectedDecoder(Layer):
-    def __init__(self, input_dim, output_dim, adj, dropout=0., act=tf.nn.relu, **kwargs):
+    def __init__(self, input_dim, output_dim, adj, dropout=0.1, act=tf.nn.relu, **kwargs):
         super(FullyConnectedDecoder, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
+        with tf.compat.v1.variable_scope()(self.name + '_vars'):
             self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
         self.dropout = dropout
         self.act = act
@@ -130,7 +131,7 @@ class FullyConnectedDecoder(Layer):
 
 class InnerProductDecoder(Layer):
     """Decoder model layer for link prediction."""
-    def __init__(self, input_dim, dropout=0., act=tf.nn.sigmoid, **kwargs):
+    def __init__(self, input_dim, dropout=0.1, act=tf.nn.sigmoid, **kwargs):
         super(InnerProductDecoder, self).__init__(**kwargs)
         self.dropout = dropout
         self.act = act
@@ -147,7 +148,7 @@ class InnerProductDecoder(Layer):
 class Dense(Layer):
     """Dense layer."""
 
-    def __init__(self, input_dim, output_dim, dropout=0.,
+    def __init__(self, input_dim, output_dim, dropout=0.1,
                  act=tf.nn.relu, placeholders=None, bias=True,
                  sparse_inputs=False, **kwargs):
         super(Dense, self).__init__(**kwargs)
@@ -162,8 +163,9 @@ class Dense(Layer):
         with tf.compat.v1.variable_scope(self.name + '_vars'):
             self.vars['weights'] = tf.compat.v1.get_variable('weights', shape=(input_dim, output_dim),
                                          dtype=tf.float32,
-                                         initializer=tf.contrib.layers.xavier_initializer(),
-                                         regularizer=tf.contrib.layers.l2_regularizer(FLAGS.weight_decay))
+                                         initializer=tf.initializers.GlorotUniform(),
+                                         regularizer=tf.keras.regularizers.L1(FLAGS.weight_decay))
+#                                          regularizer=tf.contrib.layers.l2_regularizer(FLAGS.weight_decay))
             if self.bias:
                 self.vars['bias'] = tf.compat.v1.Variable(tf.zeros([output_dim], dtype=tf.float32), name='bias')
 
@@ -190,7 +192,7 @@ class Dense(Layer):
 class NodeAttention(Layer):
     """Dense layer."""
 
-    def __init__(self, out_sz, bias_mat, nb_nodes, dropout=0.,
+    def __init__(self, out_sz, bias_mat, nb_nodes, dropout=0.1,
                  act=tf.nn.elu, **kwargs):
         super(NodeAttention, self).__init__(**kwargs)
         self.act = act
@@ -238,7 +240,7 @@ class NodeAttention(Layer):
 class InnerDecoder(Layer):
     """Decoder model layer for link prediction."""
 
-    def __init__(self, input_dim, dropout=0., act=[tf.nn.sigmoid, tf.nn.sigmoid], **kwargs):
+    def __init__(self, input_dim, dropout=0.1, act=[tf.nn.sigmoid, tf.nn.sigmoid], **kwargs):
         super(InnerDecoder, self).__init__(**kwargs)
         self.dropout = dropout
         self.input_dim = input_dim

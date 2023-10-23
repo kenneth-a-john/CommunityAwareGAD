@@ -71,9 +71,9 @@ class AnomalyDetectionRunner():
                               z_mean=model.z,
                               z_arg=model.z_a,
                             preds_attribute=model.attribute_reconstructions,
-                              labels_attribute=tf.sparse_tensor_to_dense(placeholders['features']),
+                              labels_attribute=tf.sparse.to_dense(placeholders['features']),
                               preds_structure=model.structure_reconstructions,
-                              labels_structure=tf.sparse_tensor_to_dense(placeholders['adj_orig']),
+                              labels_structure=tf.sparse.to_dense(placeholders['adj_orig']),
                               alpha=FLAGS.alpha,
                               eta=FLAGS.eta, theta=FLAGS.theta,num_nodes=num_nodes)
 
@@ -86,9 +86,9 @@ class AnomalyDetectionRunner():
                                eta=FLAGS.eta, theta=FLAGS.theta)
 
         # Initialize session
-        sess = tf.Session()
-        sess.run(tf.global_variables_initializer())
-        tf.reset_default_graph()
+        sess = tf.compat.v1.Session()
+        sess.run(tf.compat.v1.global_variables_initializer())
+        tf.Graph()
         AVER_auc=0
         # Train model
         for epoch in range(1, self.iteration+1):

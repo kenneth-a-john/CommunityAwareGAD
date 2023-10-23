@@ -33,7 +33,7 @@ class Model(object):
         """ Wrapper for _build() """
         with tf.compat.v1.variable_scope(self.name):
             self._build()
-        variables = tf.compat.v1.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
+        variables = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope=self.name)
         self.vars = {var.name: var for var in variables}
 
     def fit(self):
