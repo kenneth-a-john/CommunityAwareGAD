@@ -36,14 +36,14 @@ def get_optimizer(model_str, model, placeholders, num_nodes, alpha, eta, theta):
     opt=None
     if model_str == 'gcn_ae'or model_str=='gcn_can':
         opt = OptimizerAE(preds_attribute=model.attribute_reconstructions,
-                          labels_attribute=tf.sparse_tensor_to_dense(placeholders['features']),
+                          labels_attribute=tf.sparse.to_dense(placeholders['features']),
                           preds_structure=model.structure_reconstructions,
-                          labels_structure=tf.sparse_tensor_to_dense(placeholders['adj_orig']), alpha=alpha)
+                          labels_structure=tf.sparse.to_dense(placeholders['adj_orig']), alpha=alpha)
     elif model_str=='AnomalyDAE':
         opt = OptimizerDAE(preds_attribute=model.attribute_reconstructions,
-                           labels_attribute=tf.sparse_tensor_to_dense(placeholders['features']),
+                           labels_attribute=tf.sparse.to_dense(placeholders['features']),
                            preds_structure=model.structure_reconstructions,
-                           labels_structure=tf.sparse_tensor_to_dense(placeholders['adj_orig']), alpha=alpha,
+                           labels_structure=tf.sparse.to_dense(placeholders['adj_orig']), alpha=alpha,
                            eta=eta, theta=theta)
     else:
         print("[ERROR] no such model name: {}".format(model_str))

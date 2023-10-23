@@ -42,7 +42,7 @@ class OptimizerAE(object):
         #print(self.reconstruction_errors,'{{{{{{{{{{{{{{{{{')
         self.cost = self.re_loss +0.1*self.kl_loss + alpha * self.attribute_cost + (1-alpha) * self.structure_cost
         #print(self.cost,'|||||||||||||||||||||')
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)  # Adam Optimizer
+        self.optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)  # Adam Optimizer
         self.opt_op = self.optimizer.minimize(self.cost)
         #print(self.cost,'ZZZZZZZZZZZZZZZZZZZZ')
         #print('zzzzzzzzzzzzzzzzzzzzz')
@@ -73,6 +73,6 @@ class OptimizerDAE(object):
 
         self.cost = alpha * self.attribute_cost + (1-alpha) * self.structure_cost
 
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)  # Adam Optimizer
+        self.optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=FLAGS.learning_rate)  # Adam Optimizer
         self.opt_op = self.optimizer.minimize(self.cost)
         # self.grads_vars = self.optimizer.compute_gradients(self.cost)
