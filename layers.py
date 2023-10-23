@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
-tf.reset_default_graph()
+tf.compat.v1.reset_default_graph()
 
 
 flags = tf.compat.v1.flags
@@ -31,9 +31,9 @@ def dropout_sparse(x, keep_prob, num_nonzero_elems):
     """
     noise_shape = [num_nonzero_elems]
     random_tensor = keep_prob
-    random_tensor += tf.random_uniform(noise_shape)
+    random_tensor += tf.random.uniform(noise_shape)
     dropout_mask = tf.cast(tf.floor(random_tensor), dtype=tf.bool)
-    pre_out = tf.sparse_retain(x, dropout_mask)
+    pre_out = tf.sparse.retain(x, dropout_mask)
     return pre_out * (1./keep_prob)
 
 
@@ -66,7 +66,7 @@ class Layer(object):
         return inputs
 
     def __call__(self, inputs):
-        with tf.name_scope(self.name):
+        with tf.compat.v1.name_scope(self.name):
             outputs = self._call(inputs)
             return outputs
 
@@ -74,7 +74,7 @@ class GraphConvolution(Layer):
     """Basic graph convolution layer for undirected graph without edge labels."""
     def __init__(self, input_dim, output_dim, adj, dropout=0., act=tf.nn.relu, **kwargs):
         super(GraphConvolution, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
+        with tf.compat.v1.variable_scope(self.name + '_vars'):
             self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
         self.dropout = dropout
         self.adj = adj
@@ -82,9 +82,9 @@ class GraphConvolution(Layer):
 
     def _call(self, inputs):
         x = inputs
-        x = tf.nn.dropout(x, 1-self.dropout)
+        x = tf.nn.dropout(x, rate=1 - (1-self.dropout))
         x = tf.matmul(x, self.vars['weights'])
-        x = tf.sparse_tensor_dense_matmul(self.adj, x)
+        x = tf.sparse.sparse_dense_matmul(self.adj, x)
         outputs = self.act(x)
         return outputs
 
@@ -97,7 +97,7 @@ class GraphConvolutionSparse(Layer):
     """Graph convolution layer for sparse inputs."""
     def __init__(self, input_dim, output_dim, adj, features_nonzero, dropout=0., act=tf.nn.relu, **kwargs):
         super(GraphConvolutionSparse, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
+        with tf.compat.v1.variable_scope(self.name + '_vars'):
             self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
         self.dropout = dropout
         self.adj = adj
@@ -108,22 +108,22 @@ class GraphConvolutionSparse(Layer):
     def _call(self, inputs):
         x = inputs
         x = dropout_sparse(x, 1-self.dropout, self.features_nonzero)
-        x = tf.sparse_tensor_dense_matmul(x, self.vars['weights'])
-        x = tf.sparse_tensor_dense_matmul(self.adj, x)
+        x = tf.sparse.sparse_dense_matmul(x, self.vars['weights'])
+        x = tf.sparse.sparse_dense_matmul(self.adj, x)
         outputs = self.act(x)
         return outputs
 
 class FullyConnectedDecoder(Layer):
     def __init__(self, input_dim, output_dim, adj, dropout=0., act=tf.nn.relu, **kwargs):
         super(FullyConnectedDecoder, self).__init__(**kwargs)
-        with tf.variable_scope(self.name + '_vars'):
+        with tf.compat.v1.variable_scope(self.name + '_vars'):
             self.vars['weights'] = weight_variable_glorot(input_dim, output_dim, name="weights")
         self.dropout = dropout
         self.act = act
 
     def _call(self, inputs):
         x = inputs
-        x = tf.nn.dropout(x, 1 - self.dropout)
+        x = tf.nn.dropout(x, rate=1 - (1 - self.dropout))
         outputs = tf.matmul(x, self.vars['weights'])
         return outputs
 
@@ -136,7 +136,7 @@ class InnerProductDecoder(Layer):
         self.act = act
 
     def _call(self, inputs):
-        inputs = tf.nn.dropout(inputs, 1-self.dropout)
+        inputs = tf.nn.dropout(inputs, rate=1 - (1-self.dropout))
         x = tf.transpose(inputs)
         x = tf.matmul(inputs, x)
         #x = tf.reshape(x, [-1])
@@ -162,8 +162,8 @@ class Dense(Layer):
         with tf.compat.v1.variable_scope(self.name + '_vars'):
             self.vars['weights'] = tf.compat.v1.get_variable('weights', shape=(input_dim, output_dim),
                                          dtype=tf.float32,
-                                         initializer=tf.contrib.layers.xavier_initializer(),
-                                         regularizer=tf.contrib.layers.l2_regularizer(FLAGS.weight_decay))
+                                         initializer=tf.compat.v1.keras.initializers.VarianceScaling(scale=1.0, mode="fan_avg", distribution="uniform"),
+                                         regularizer=tf.keras.regularizers.l2(0.5 * (FLAGS.weight_decay)))
             if self.bias:
                 self.vars['bias'] = tf.compat.v1.Variable(tf.zeros([output_dim], dtype=tf.float32), name='bias')
 
@@ -174,7 +174,7 @@ class Dense(Layer):
         x = inputs
 
         if self.sparse_inputs:
-            output = tf.sparse_tensor_dense_matmul(x, self.vars['weights'])
+            output = tf.sparse.sparse_dense_matmul(x, self.vars['weights'])
         else:
             output = tf.matmul(x, self.vars['weights'])
 
@@ -203,11 +203,11 @@ class NodeAttention(Layer):
 
     def _call(self, inputs):
 
-        seq_fts = tf.layers.conv1d(inputs, self.out_sz, 1, use_bias=False)
+        seq_fts = tf.compat.v1.layers.conv1d(inputs, self.out_sz, 1, use_bias=False)
 
         # simplest self-attention possible
-        f_1_t = tf.layers.conv1d(seq_fts, 1, 1)
-        f_2_t = tf.layers.conv1d(seq_fts, 1, 1)
+        f_1_t = tf.compat.v1.layers.conv1d(seq_fts, 1, 1)
+        f_2_t = tf.compat.v1.layers.conv1d(seq_fts, 1, 1)
 
         f_1 = tf.reshape(f_1_t, (self.nb_nodes, 1))
         f_2 = tf.reshape(f_2_t, (self.nb_nodes, 1))
@@ -215,18 +215,18 @@ class NodeAttention(Layer):
         f_1 = self.bias_mat * f_1
         f_2 = self.bias_mat * tf.transpose(f_2, [1, 0])
 
-        logits = tf.sparse_add(f_1, f_2)
+        logits = tf.sparse.add(f_1, f_2)
         lrelu = tf.SparseTensor(indices=logits.indices,
                                 values=tf.nn.leaky_relu(logits.values),
                                 dense_shape=logits.dense_shape)
-        coefs = tf.sparse_softmax(lrelu)
+        coefs = tf.sparse.softmax(lrelu)
 
         # As tf.sparse_tensor_dense_matmul expects its arguments to have rank-2,
         # here we make an assumption that our input is of batch size 1, and reshape appropriately.
         # The method will fail in all other cases!
-        coefs = tf.sparse_reshape(coefs, [self.nb_nodes, self.nb_nodes])
+        coefs = tf.sparse.reshape(coefs, [self.nb_nodes, self.nb_nodes])
         seq_fts = tf.squeeze(seq_fts)
-        vals = tf.sparse_tensor_dense_matmul(coefs, seq_fts)
+        vals = tf.sparse.sparse_dense_matmul(coefs, seq_fts)
         vals = tf.expand_dims(vals, axis=0)
         vals.set_shape([1, self.nb_nodes, self.out_sz])
         ret = self.act(tf.contrib.layers.bias_add(vals))
@@ -248,11 +248,11 @@ class InnerDecoder(Layer):
 
     def _call(self, inputs):
         z_u, z_a = inputs
-        z_u = tf.nn.dropout(z_u, 1 - self.dropout)
+        z_u = tf.nn.dropout(z_u, rate=1 - (1 - self.dropout))
         z_u_t = tf.transpose(z_u)
         x = tf.matmul(z_u, z_u_t)
         print(x,'VVVVVVVVVVVVVVV')
-        z_a_t = tf.transpose(tf.nn.dropout(z_a, 1 - self.dropout))
+        z_a_t = tf.transpose(tf.nn.dropout(z_a, rate=1 - (1 - self.dropout)))
         y = tf.matmul(z_u, z_a_t)
         print(y,'BBBBBBBBBBBBBBBBBBBBBB')
 
